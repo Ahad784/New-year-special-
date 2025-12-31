@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happy New Year</title>
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  background: white;
+  overflow: hidden;
+}
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+/* ================= CONFIG ================= */
+const DEMO_MODE = false;
+const DEMO_SECONDS = 15;
+
+/* ================= SETUP ================= */
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+let W, H, DPR;
+
+function resize() {
+  DPR = devicePixelRatio || 1;
+  W = innerWidth;
+  H = innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener("resize", resize);
+resize();
+
+/* ================= TIME ================= */
+const startTime = Date.now();
+function remaining() {
+  if (DEMO_MODE) {
+    return Math.max(0, DEMO_SECONDS - ((Date.now()-startTime)/1000|0));
+  }
+  const now = new Date();
+  const target = new Date(now.getFullYear()+1,0,1,0,0,0);
+  return Math.max(0, ((target-now)/1000)|0);
+}
+const isNewYear = () => remaining() === 0;
+
+/* ================= CAT ================= */
+const cat = {
+  x: W*0.3, y: H*0.65,
+  dir: 1, step: 0, blink: 0,
+  sit: false, swipe: 0, smash: false
+};
+
+/* ================= CAKE ================= */
+const cake = {
+  x: W*0.6, y: H*0.63,
+  candle: true, smashed: false
+};
+
+/* ================= FIREWORKS ================= */
+const fireworks = [];
+function spawnFirework() {
+  const x = Math.random()*W;
+  const y = Math.random()*H*0.4;
+  const particles = [];
+  for (let i=0;i<20;i++) {
+    const a = Math.random()*Math.PI*2;
+    const s = Math.random()*3+2;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:60});
+  }
+  fireworks.push(particles);
+}
+
+/* ================= DRAW ================= */
+function drawCountdown() {
+  const t = remaining();
+  const h = String(t/3600|0).padStart(2,"0");
+  const m = String((t%3600)/60|0).padStart(2,"0");
+  const s = String(t%60).padStart(2,"0");
+  ctx.fillStyle="#000";
+  ctx.font="bold 20px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText(`${h}:${m}:${s}`,W/2,30);
+}
+
+function drawTable() {
+  ctx.fillStyle="#c68642";
+  ctx.fillRect(0,H*0.7,W,H*0.3);
+}
+
+function drawCake() {
+  if (cake.smashed) return;
+  ctx.save();
+  ctx.translate(cake.x,cake.y);
+  ctx.fillStyle="#f5deb3";
+  ctx.fillRect(-30,-20,60,40);
+  ctx.fillStyle="#fff";
+  ctx.fillRect(-30,-5,60,10);
+  if (cake.candle) {
+    ctx.fillStyle="#ff6961";
+    ctx.fillRect(-2,-45,4,25);
+    ctx.fillStyle="#ffa500";
+    ctx.beginPath();
+    ctx.arc(0,-50+Math.sin(Date.now()*0.01)*2,5,0,Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawCat() {
+  const bob = cat.sit ? 0 : Math.sin(cat.step)*4;
+  ctx.save();
+  ctx.translate(cat.x,cat.y+bob);
+  ctx.scale(cat.dir,1);
+
+  // Legs
+  ctx.strokeStyle="#000";
+  ctx.lineWidth=6;
+  const swing = cat.sit ? 0 : Math.sin(cat.step)*10;
+
+  const legs = [
+    [-25,10,30+swing],[-10,10,30-swing],
+    [15,10,30-swing],[30,10,30+swing]
+  ];
+  legs.forEach(l=>{
+    ctx.beginPath();
+    ctx.moveTo(l[0],l[1]);
+    ctx.lineTo(l[0],l[2]);
+    ctx.stroke();
+  });
+
+  // Body
+  ctx.fillStyle="#000";
+  ctx.beginPath();
+  ctx.ellipse(0,0,45,22,0,0,Math.PI*2);
+  ctx.fill();
+
+  // Head
+  ctx.beginPath();
+  ctx.arc(45,-18,18,0,Math.PI*2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle="#fff";
+  const blink = Math.abs(Math.sin(cat.blink))<0.05?1:6;
+  ctx.fillRect(40,-22,4,blink);
+  ctx.fillRect(50,-22,4,blink);
+
+  // Tail
+  ctx.strokeStyle="#000";
+  ctx.beginPath();
+  ctx.moveTo(-45,0);
+  ctx.quadraticCurveTo(-70,-20,-65,-40+Math.sin(cat.step)*10);
+  ctx.stroke();
+
+  // Paw swipe
+  if (cat.swipe>0) {
+    ctx.save();
+    ctx.translate(40,5);
+    ctx.rotate(-Math.PI/3 * cat.swipe);
+    ctx.strokeStyle="#000";
+    ctx.lineWidth=7;
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.lineTo(35,20);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/* ================= LOOP ================= */
+let triggered=false, phase=0, textA=0;
+
+function loop() {
+  ctx.clearRect(0,0,W,H);
+  drawCountdown();
+  drawTable();
+  drawCake();
+  drawCat();
+
+  if (!triggered) {
+    cat.step+=0.08;
+    cat.blink+=0.02;
+    cat.x+=0.6*cat.dir;
+    if (cat.x>W*0.7||cat.x<W*0.25) cat.dir*=-1;
+    if (isNewYear()) triggered=true;
+  } else {
+    phase+=0.02;
+
+    if (phase>0.5) cake.candle=false;
+
+    // Cat smashes cake
+    if (phase>1 && !cake.smashed) {
+      cat.swipe = Math.min(1, cat.swipe+0.08);
+      if (cat.swipe>=1) cake.smashed=true;
+    }
+
+    // Cake on screen
+    if (cake.smashed) {
+      ctx.fillStyle="#fff";
+      ctx.fillRect(0,0,W,H);
+      if (Math.random()<0.05) spawnFirework();
+    }
+
+    // Fireworks
+    fireworks.forEach(f=>{
+      f.forEach(p=>{
+        ctx.fillStyle="rgba(255,180,0,0.8)";
+        ctx.fillRect(p.x,p.y,2,2);
+        p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.life--;
+      });
+    });
+
+    // Final
+    if (phase>3) {
+      cat.sit=true;
+      textA=Math.min(1,textA+0.02);
+      ctx.fillStyle=`rgba(0,0,0,${textA})`;
+      ctx.font="bold 36px sans-serif";
+      ctx.textAlign="center";
+      ctx.fillText("HAPPY NEW YEAR DEAR",W/2,H*0.45);
+    }
+  }
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
